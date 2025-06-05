@@ -1,23 +1,24 @@
 const user_model= require("../models/user_model");
 const bcrypt=require("bcryptjs")
 const jwt=require("jsonwebtoken")
-const secret=require("../config/auth.config")
 const server_model = require("../models/server_model");
 const server_config = require("../config/servers.config");
+const generateToken = require("../lib/jwt.js");
+
+require('dotenv/config') 
 const salt=8;
 const signUp=async (req,res)=>{
-    // console.log("API called")
+    
 
     try{
         const req_body=req.body;
         console.log(req_body);
         const user={
-            firstName:req_body.firstName,
-            lastName:req_body.lastName,
+            fullName:req_body.fullName,
             userID:req_body.userID,
             email:req_body.email,
             password:bcrypt.hashSync(req_body.password,salt),
-            userType:req_body.userType
+            userType:"USER"
         }
         let ret=await user_model.create(user);
         console.log("user successfully created",ret);
@@ -30,9 +31,9 @@ const signUp=async (req,res)=>{
         
         let ret2=await server_model.create(server_details);
         console.log("server successfully alloted",ret2);
-        res.status(200).send({
-            message:"user successfully created"
-        })
+        const token=generateToken(req_body.userID,res);
+        
+        res.status(200).send(req_body.userID)
     }catch(err){   
         console.log("error while creating user",err);
         res.status(500).send({
@@ -51,14 +52,10 @@ const signInHelper=async (req,res,user)=>{
             })
         }
         console.log("Valid user , password matched");
-        // console.log(secret.tokenSecret);
-        const token=jwt.sign({userID:user.userID},secret.tokenSecret,{
-            expiresIn:secret.tokenDuration
-        })
-        res.status(200).send({
-            token:token,
-            message:"Valid user , password matched"
-        })
+        // console.log(process.env.JWT_SECRET);
+        const token=generateToken(req_body.userID,res);
+        // console.log(token)
+        res.status(200).send(req_body.userID)
     }catch(err){
         console.log("error occured while signing in",err);
         res.status(500).send({
@@ -86,8 +83,41 @@ const signIn=async (req,res)=>{
     }
 }
 
+const authCheck =async (req,res)=>{
+    try{
+        // if(!req.headers["token"]){
+        //     console.log("token not provided for authCheck request")
+        //     return res.status(400).send({
+        //         message:"token not provided for authCheck request"
+        //     })
+        // }
+        const token=req.cookies.jwt;
+        
+        console.log();
+        const tokenDetails=jwt.verify(token,process.env.JWT_SECRET);
+        console.log("Valid Token for authCheck",tokenDetails.userID)
+        res.status(200).send({userID:tokenDetails.userID});
+    }catch(err){
+        console.log("Not a Valid token for authCheck request",err.message);
+        return res.status(401).send({
+            message:"Not a Valid token for authCheck request"
+        })
+    }
+}
+const logout=async (req,res)=>{
+    console.log("Logout requested")
+    try {
+        res.cookie("jwt", "", { maxAge: 0 });
+        res.status(200).json({ message: "Logged out successfully" });
+      } catch (error) {
+        console.log("Error in logout controller", error.message);
+        res.status(500).json({ message: "Internal Server Error" });
+      }
+}
 module.exports={
     signUp:signUp,
     signIn:signIn,
+    authCheck:authCheck,
+    logout:logout,
 }
 

@@ -1,36 +1,36 @@
 const group_model=require("../models/group.model");
-const secret=require("../config/auth.config");
-const user_model = require("../models/user_model");
+const userModel = require("../models/user_model");
 const jwt=require("jsonwebtoken")
+require('dotenv/config') 
 const verifyCreateGroupBody=async(req,res,next)=>{
     try{
-        const req_body=req.body;
-        if(!req_body.userID){
+        const reqBody=req.body;
+        if(!reqBody.userID){
             console.log("userID not provided for createGroup request")
             return res.status(400).send({
                 message:"userID not provided for for createGroup request"
             })
         }
-        if(!req_body.name){
+        if(!reqBody.name){
             console.log("name not provided for createGroup request")
             return res.status(400).send({
                 message:"name not provided for for createGroup request"
             })
         }
-        if(!req_body.groupID){
+        if(!reqBody.groupID){
             console.log("groupID not provided for createGroup request")
             return res.status(400).send({
                 message:"groupID not provided for for createGroup request"
             })
         }
-        if(!req_body.members){
+        if(!reqBody.members){
             console.log("members not provided for createGroup request")
             return res.status(400).send({
                 message:"members not provided for createGroup request"
             })
         }
-        if(!req_body.members.includes(req_body.userID)){
-            req.body.members.push(req_body.userID);
+        if(!reqBody.members.includes(reqBody.userID)){
+            req.body.members.push(reqBody.userID);
         }
         
     }catch(err){
@@ -40,21 +40,16 @@ const verifyCreateGroupBody=async(req,res,next)=>{
         })
     }
     try{
-        if(!req.headers["token"]){
-            console.log("token not provided for createGroup request")
+        
+        const token=req.cookies.jwt;
+        const tokenDetails=jwt.verify(token,process.env.JWT_SECRET);
+        if(tokenDetails.userID!==req.body.userID){
+            console.log("User is using someone else's token")
             return res.status(400).send({
-                message:"token not provided for createGroup request"
+                message:"User is using someone else's token"
             })
         }
-        const token=req.headers["token"];
-        const token_details=jwt.verify(token,secret.tokenSecret);
-        if(token_details.userID!==req.body.userID){
-            console.log("fraud aya kisi aur ka token leke group banane ke liye")
-            return res.status(400).send({
-                message:"bhakk saale fraud"
-            })
-        }
-        req.user=token_details;
+        req.user=tokenDetails;
     }catch(err){
         console.log("Not a Valid token for createGroup request",err);
         return res.status(401).send({
@@ -62,16 +57,16 @@ const verifyCreateGroupBody=async(req,res,next)=>{
         })
     }
     try{
-        const req_body=req.body;
-        const groupExist=await group_model.findOne({groupID:req_body.groupID});
+        const reqBody=req.body;
+        const groupExist=await group_model.findOne({groupID:reqBody.groupID});
         if(groupExist){
             console.log("group with provided groupID already exists")
             return res.status(400).send({
                 message:"group with provided groupID already exists"
             })
         }
-        req_body.members.forEach(async member => {
-            const user=await user_model.findOne({userID:member});
+        reqBody.members.forEach(async member => {
+            const user=await userModel.findOne({userID:member});
             if(!user){
                 console.log("group member does not exists:",member)
                 return res.status(400).send({

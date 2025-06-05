@@ -3,12 +3,9 @@ const db=mongoose.connection;
 
 const userSchema=new mongoose.Schema(
     {
-        firstName:{
+        fullName:{
             type:String,
             required:true,
-        },
-        lastName:{
-            type:String,
         },
         friends:[], 
         email:{
@@ -36,5 +33,7 @@ const userSchema=new mongoose.Schema(
         
 
     },{timestamps:true,versionKey:false})
+    
 
+   
     module.exports=mongoose.model("User",userSchema);

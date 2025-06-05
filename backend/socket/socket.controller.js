@@ -1,61 +1,86 @@
-const servers_config=require("../config/servers.config")
 const server_model=require("../models/server_model")
+const group_model=require("../models/group.model")
 const unstMessage_model=require("../models/unsent_messages.model")
-const WebSocket = require('ws');
-const saveUnstMessage=async (ws,messageObject)=>{
-    ws.send(JSON.stringify({
-        message: "Receiver is offline",
-        receiver:messageObject.userID
-    }));
-    const unstMessageSaved=await unstMessage_model.create(messageObject);
-    return unstMessageSaved;
-}
-const sendMessage=async (ws,messageObject) => {
+const socket_controller=require("./sendMessage")
+
+const socketController=async (ws,request)=>{
+    
     try{
-        console.log('Received message on websocket from:',messageObject);
-        const receiver=await server_model.findOne({userID:messageObject.userID});
-        if(!receiver){
-            console.log("receiver not found for:",messageObject);
-            return true;
+
+        ws.send(JSON.stringify({ message: 'Welcome to WebSocket server!' }));
+        const unstMessages=await unstMessage_model.find({userID:request.details.userID});
+        let isSocketActive=true;
+        for (const singleMessage of unstMessages) {
+            // let messageObject=singleMessage;
+            // messageObject.unsentMessage=true;
+            const messageObject = {
+                // id:singleMessage.message_id,
+                from:singleMessage.from,
+                userID:singleMessage.userID,
+                message:singleMessage.message,
+                unsentMessage:true,
+            };
+            
+            isSocketActive=await socket_controller.sendMessage(ws,messageObject);
+            await unstMessage_model.deleteOne(singleMessage);
+            if(!isSocketActive)break;
         }
-        // console.log("receiver->",receiver);
-        // if(receiver.status==="DISCONNECTED"){
-        //     ws.send(JSON.stringify({
-        //         message: "Receiver is offline",
-        //         receiver:messageObject.userID
-        //     }));
-        //     const unstMessageSaved=await unstMessage_model.create(messageObject);
-        //     console.log("Receiver is offline message saved:",unstMessageSaved);
-        //     return true;
-        // }
-        const ws_receiver=servers_config.socketMapping[receiver.server_number-50000].get(receiver.userID);
-        if(!ws_receiver){
-            await saveUnstMessage(ws,messageObject);
-            console.log("receiver ka socket hi nhi bana hai")
-            return false;
-        }
-        if(ws_receiver.readyState !== WebSocket.OPEN){
-            const unstMessageSaved=await saveUnstMessage(ws,messageObject);
-            console.log("Receiver is offline message saved:",unstMessageSaved);
-            return false;
-        }
-        ws_receiver.send(JSON.stringify(messageObject));  
-        console.log("Message delivered successfully",messageObject);
-        if(!messageObject.unsentMessage)ws.send(JSON.stringify({ 
-            message: "Message delivered successfully",
-            receiver:messageObject.userID
-            }))
-        return true;
+        ws.on('message',async(messageArrived)=>{
+            ws.send(JSON.stringify({ message: `message received on server` }));
+            const messageObject = JSON.parse(messageArrived);
+            messageObject.from=request.details.userID;
+            if(!messageObject.message){
+                console.log("MESSAGE is empty");
+                ws.send(JSON.stringify({ message: "message is empty" }))
+                return;
+            }
+            if(messageObject.userID){
+                socket_controller.sendMessage(ws,messageObject);
+            }else if(messageObject.groupID){
+                const groupDetails=await group_model.findOne({groupID:messageObject.groupID,members:request.details.userID});
+                if(groupDetails){
+                    const groupMembers=groupDetails.members;
+                    await Promise.all(
+                        groupMembers
+                        .filter(member => member !== request.details.userID)
+                        .map(async (member) => {
+                            const singleMessageObject = {
+                                fromGroup:groupDetails.groupID,
+                                from:request.details.userID,
+                                userID:member,
+                                message:messageObject.message,
+                            };
+                            await socket_controller.sendMessage(ws,singleMessageObject);
+                        })
+                    )
+                    
+                }else{
+                    console.log("No group found with provided credentials");
+                    ws.send(JSON.stringify({ message: "No group found with provided credentials" }))
+                    return;
+                }
+            }else{
+                console.log("receiver not provided");
+                ws.send(JSON.stringify({ message: "receiver not provided" }))
+                return;
+            }
+        });
+        
+        ws.on('close',async () => {
+            // (servers_config.socketMapping[request.socket.localPort-50000]).delete(request.details.userID);
+            // await server_model.updateOne({ userID: request.details.userID }, { $set: { status: "DISCONNECTED" } });
+            console.log('A client disconnected');
+            return;
+        });
     }catch(err){
-        // await server_model.updateOne({ userID: request.details.userID }, { $set: { status: "DISCONNECTED" } });
-        // await server_model.updateOne({ userID: messageObject.userID }, { $set: { status: "DISCONNECTED" } });
-        console.log("Error occured while processing message",err);
-        ws.send(JSON.stringify({ message: `Error occured while sending message`,messageObject}));
+        // (servers_config.socketMapping[request.socket.localPort-50000]).delete(request.details.userID);
+        // await server_model.updateOne({ userID: request.details.userID }, { $set: { status: "DISCONNECTED" } }); 
+        console.log("Error Occured on connection request",err);
         return ws.close();
     }
-        
+    
 }
 
 module.exports={
-    sendMessage:sendMessage
+    socketController:socketController,
 }

@@ -14,9 +14,6 @@ const groupSchema=mongoose.Schema({
         type:String,
         required:true,
     },
-    bio:{
-        type:String,
-    },
     
     members:[],
 

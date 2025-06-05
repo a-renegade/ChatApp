@@ -7,16 +7,17 @@ const bcrypt=require("bcryptjs")
 const servers_config=require("./config/servers.config")
 const salt=8;
 const server_model = require("./models/server_model");
-const server_mw=require("./socket/server_socket.mw")
+const server_mw=require("./socket/socket.mw")
 const WebSocket = require('ws');
 const group_routes=require("./routes/group.routes")
 const unstMessage_model=require("./models/unsent_messages.model")
-
+const cors=require("cors");
 const server_port_number=8888;
+const cookieParser =require("cookie-parser")
 
 let first_port=50000;
 const servers=servers_config.servers;
-const total_number_of_ports=servers_config.total_number;
+const totalNumberOfPorts=servers_config.total_number;
 
 
 const messageObject={
@@ -24,14 +25,14 @@ const messageObject={
     userID:"user4",
     message:"hello"
 };
-const create_fake_unstMessages_to_test=async(messageObject)=>{
+const createFakeUnsentMessages=async(messageObject)=>{
     const unstMessageSaved=await unstMessage_model.create(messageObject);
     
 }
 
 app.listen(server_port_number,async()=>{
     // for(let ind=0;ind<1000;ind++){
-    //     await create_fake_unstMessages_to_test(messageObject);
+    //     await createFakeUnsentMessages(messageObject);
     // }
     
     await server_model.updateMany(
@@ -51,7 +52,14 @@ db.once("open",()=>{
     console.log("Connected to MongoDB");
     init()
 }) 
- 
+app.use(express.json());
+app.use(cookieParser());
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+    credentials: true,
+  })
+);
 // console.log(servers_config.total_number); 
 async function init(){
     try{
@@ -59,7 +67,7 @@ async function init(){
         let user=await user_model.findOne({userID:"abhishek_55"})
         
         if(user){
-            console.log("ADMIN IS ALREADY PRESENT->",user.firstName)
+            console.log("ADMIN IS ALREADY PRESENT->",user.fullName)
             return;
         }
         // console.log("WORKING");
@@ -71,12 +79,11 @@ async function init(){
     try{
         
         user_model.create({
-            firstName:"Abhishek",
-            lastName:"Yadav",
+            fullName:"Abhishek Yadav",
             userID:"abhishek_55",
             password:bcrypt.hashSync("abhi123",salt),
             email:"abhishek908489@gmail.com",
-            type:"ADMIN",  
+            userType:"ADMIN",  
             friends:[{name:"piyush",userID:"piyush123"},{name:"ankit",userID:"ankit123"}]
         })
         let user=await user_model.findOne({userID:"abhishek_55"})
@@ -98,7 +105,7 @@ async function init(){
     }
 } 
 try{
-    for(server_num=0;server_num<total_number_of_ports;server_num++){
+    for(server_num=0;server_num<totalNumberOfPorts;server_num++){
         // const wss = new WebSocket.Server({ port:first_port+ server_num });
         
         const wss = new WebSocket.Server({ port:first_port+ server_num });
@@ -115,11 +122,11 @@ try{
 }catch(err){
     console.log()
 }
-app.use(express.json())
+
 app.post("/",(req,res)=>{
     
     res.send("HELLO FROM SERVER");
     
 })
-app.use("/personal/auth",auth_routes); 
-app.use("/personal/group",group_routes);
+app.use("/personal/api/auth",auth_routes); 
+app.use("/personal/api/group",group_routes);

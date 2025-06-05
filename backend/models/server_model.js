@@ -10,15 +10,7 @@ const server_schema=mongoose.Schema({
         type:Number,
         required:true,
     },
-    socketID:{
-        type:String,
-        default:"NULL"
-    },
-    status:{
-        type:String,
-        default:"DISCONNECTED",
-        enum:["CONNECTED","DISCONNECTED"] 
-    }
+    
 },{timestamps:true,versionKey:false})
 
 module.exports=mongoose.model("serverDetail",server_schema);

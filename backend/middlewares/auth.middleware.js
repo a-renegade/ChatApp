@@ -1,15 +1,15 @@
 
 const user_model=require("../models/user_model")
 const signUp=async (req,res,next)=>{
-    
+    console.log("signup API called")
     try{
         
         let req_body=req.body;
         console.log(req_body);
-        if(!req_body.firstName){
-            console.log("firstName not provided for signUP");
+        if(!req_body.fullName){
+            console.log("name not provided for signUP");
             return res.status(400).send({
-                message:"firstName not provided for signUP",
+                message:"name not provided for signUP",
             })
         }
         if(!req_body.userID){
